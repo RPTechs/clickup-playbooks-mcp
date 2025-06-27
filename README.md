@@ -12,16 +12,6 @@ A Model Context Protocol (MCP) server that provides access to ClickUp documents 
 
 ## Quick Start
 
-### Install via npm (Recommended)
-
-```bash
-# Install globally
-npm install -g @rptechs/clickup-playbooks-mcp
-
-# Or use with npx (no installation required)
-npx @rptechs/clickup-playbooks-mcp
-```
-
 ### Claude Desktop Configuration
 
 Add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
