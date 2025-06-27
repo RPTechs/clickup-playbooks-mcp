@@ -245,16 +245,30 @@ class ClickUpPlaybooksMCP {
     }
 
     const docs = await this.clickUpClient.getDocs(this.playbooksFolderId);
+    console.error(`[DEBUG] Retrieved ${docs.length} docs from folder ${this.playbooksFolderId}`);
+    
+    if (docs.length > 0) {
+      console.error(`[DEBUG] First doc example:`, {
+        id: docs[0].id,
+        name: docs[0].name,
+        contentLength: docs[0].content.length,
+        contentPreview: docs[0].content.substring(0, 100)
+      });
+    }
+    
     const results = this.documentAnalyzer.searchDocuments(docs, query);
+    console.error(`[DEBUG] Search for "${query}" returned ${results.length} results`);
 
     return {
       content: [
         {
           type: 'text',
-          text: results.length > 0 
+          text: docs.length === 0 
+            ? `No documents found in folder ${this.playbooksFolderId}. Check your folder ID and API permissions.`
+            : results.length > 0 
             ? `Found ${results.length} playbook(s) matching "${query}":\n\n` +
               results.map(doc => `- **${doc.name}**\n  ${doc.content.substring(0, 150)}...`).join('\n\n')
-            : `No playbooks found matching "${query}"`,
+            : `Found ${docs.length} total playbooks, but none matched "${query}". Try a broader search term.`,
         },
       ],
     };
