@@ -16,10 +16,10 @@ A Model Context Protocol (MCP) server that provides access to ClickUp documents 
 
 ```bash
 # Install globally
-npm install -g @your-username/clickup-playbooks-mcp
+npm install -g @rptechs/clickup-playbooks-mcp
 
 # Or use with npx (no installation required)
-npx @your-username/clickup-playbooks-mcp
+npx @rptechs/clickup-playbooks-mcp
 ```
 
 ### Claude Desktop Configuration
@@ -31,7 +31,7 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
   "mcpServers": {
     "clickup-playbooks": {
       "command": "npx",
-      "args": ["-y", "@your-username/clickup-playbooks-mcp@latest"],
+      "args": ["-y", "@rptechs/clickup-playbooks-mcp@latest"],
       "env": {
         "CLICKUP_API_TOKEN": "pk_your_token_here",
         "CLICKUP_PLAYBOOKS_FOLDER_ID": "20382935"
@@ -61,7 +61,7 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
 If you want to modify or contribute to the code:
 
 ```bash
-git clone https://github.com/your-username/clickup-playbooks-mcp.git
+git clone https://github.com/RPTechs/clickup-playbooks-mcp.git
 cd clickup-playbooks-mcp
 npm install
 npm run build
