@@ -1,0 +1,45 @@
+{
+  "name": "@your-username/clickup-playbooks-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for ClickUp RPNet Playbooks folder access and analysis",
+  "keywords": ["mcp", "clickup", "playbooks", "model-context-protocol", "claude"],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/clickup-playbooks-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/clickup-playbooks-mcp/issues"
+  },
+  "homepage": "https://github.com/your-username/clickup-playbooks-mcp#readme",
+  "type": "module",
+  "bin": {
+    "clickup-playbooks-mcp": "./build/index.js"
+  },
+  "files": [
+    "build/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
