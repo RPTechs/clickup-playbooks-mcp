@@ -511,7 +511,7 @@ class ClickUpPlaybooksMCP {
           
           response += `### ${index + 1}. **${doc.name}**\n`;
           response += `- **ID:** ${doc.id}\n`;
-          response += `- **Folder:** ${doc.folder.name} (${doc.folder.id})\n`;
+          response += `- **Folder:** ${doc.folder?.name || 'Unknown'} (${doc.folder?.id || 'Unknown'})\n`;
           response += `- **Content Length:** ${doc.content.length} characters\n`;
           response += `- **Complexity:** ${analysis.complexity}\n`;
           
@@ -550,7 +550,7 @@ class ClickUpPlaybooksMCP {
       } else {
         response += `⚠️ No playbooks found. Documents scanned:\n\n`;
         allDocs.slice(0, 10).forEach((doc, index) => {
-          response += `${index + 1}. **${doc.name}** (${doc.folder.name})\n`;
+          response += `${index + 1}. **${doc.name}** (${doc.folder?.name || 'Unknown'})\n`;
         });
         if (allDocs.length > 10) {
           response += `... and ${allDocs.length - 10} more documents\n`;
