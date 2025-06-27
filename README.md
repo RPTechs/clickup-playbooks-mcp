@@ -12,6 +12,7 @@ A Model Context Protocol (MCP) server that provides access to ClickUp documents 
 
 ## Quick Start
 
+
 ### Claude Desktop Configuration
 
 Add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
@@ -36,7 +37,7 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `CLICKUP_API_TOKEN` | ✅ | - | Your ClickUp API token |
-| `CLICKUP_PLAYBOOKS_FOLDER_ID` | ✅ | `20382935` | RPNet Playbooks folder ID |
+| `CLICKUP_PLAYBOOKS_FOLDER_ID` | ❌ | `20382935` | RPNet Playbooks folder ID |
 
 
 ### Getting Your ClickUp API Token
