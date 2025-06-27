@@ -143,30 +143,38 @@ export class ClickUpClient {
       
       const docs: ClickUpDoc[] = [];
       
-      // Filter docs by folder if folderId is provided
+      // Filter docs by parent folder if folderId is provided
       const filteredDocs = folderId ? 
-        (response.docs || []).filter((doc: any) => doc.folder_id === folderId) :
+        (response.docs || []).filter((doc: any) => doc.parent?.id === folderId) :
         (response.docs || []);
       
       for (const doc of filteredDocs) {
         try {
-          // Get the doc content using v3 API
-          const docDetail = await this.getDoc(doc.id);
+          // Get the doc pages/content using v3 API
+          const docPages = await this.getDocPages(doc.id);
+          let content = '';
+          
+          // Extract content from pages
+          if (docPages.pages && docPages.pages.length > 0) {
+            content = docPages.pages.map((page: any) => 
+              page.content?.markdown || page.content?.text || page.content || ''
+            ).join('\n\n');
+          }
           
           docs.push({
             id: doc.id,
             name: doc.name || 'Untitled',
-            content: docDetail.content || '',
+            content: content,
             date_created: doc.date_created,
             date_updated: doc.date_updated,
-            creator: doc.creator || { id: '', username: '', email: '' },
+            creator: this.formatCreator(doc.creator),
             folder: {
               id: folderId,
-              name: doc.folder?.name || 'Unknown'
+              name: 'Playbook Instructions'
             }
           });
         } catch (docError) {
-          console.error(`Error getting doc ${doc.id}:`, docError);
+          console.error(`Error getting pages for doc ${doc.id}:`, docError);
           // Still include the doc even if we can't get its content
           docs.push({
             id: doc.id,
@@ -174,10 +182,10 @@ export class ClickUpClient {
             content: '',
             date_created: doc.date_created,
             date_updated: doc.date_updated,
-            creator: doc.creator || { id: '', username: '', email: '' },
+            creator: this.formatCreator(doc.creator),
             folder: {
               id: folderId,
-              name: doc.folder?.name || 'Unknown'
+              name: 'Playbook Instructions'
             }
           });
         }
@@ -190,11 +198,18 @@ export class ClickUpClient {
     }
   }
 
-  async getDoc(docId: string): Promise<{ content: string }> {
+  async getDocPages(docId: string): Promise<{ pages: any[] }> {
     if (!this.config.workspaceId) {
       throw new Error('Workspace ID is required for docs API');
     }
-    return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}`, {}, true);
+    return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}/pages`, {}, true);
+  }
+
+  private formatCreator(creator: any): { id: string; username: string; email: string } {
+    if (typeof creator === 'number') {
+      return { id: creator.toString(), username: '', email: '' };
+    }
+    return creator || { id: '', username: '', email: '' };
   }
 
   private async getTasksInList(listId: string): Promise<any[]> {
