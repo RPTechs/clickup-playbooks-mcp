@@ -31,7 +31,7 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
   "mcpServers": {
     "clickup-playbooks": {
       "command": "npx",
-      "args": ["-y", "@rptechs/clickup-playbooks-mcp@latest"],
+      "args": ["-y", "github:RPTechs/clickup-playbooks-mcp"],
       "env": {
         "CLICKUP_API_TOKEN": "pk_your_token_here",
         "CLICKUP_PLAYBOOKS_FOLDER_ID": "20382935"
