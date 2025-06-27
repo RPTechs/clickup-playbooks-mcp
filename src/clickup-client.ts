@@ -231,8 +231,15 @@ export class ClickUpClient {
 
       console.error(`[DEBUG] Getting docs from workspace: ${this.config.workspaceId}, folder: ${folderId}`);
 
-      // Use ClickUp's v3 Docs API to get docs from workspace
-      const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs`, {
+      // Use ClickUp's v3 Docs API with proper query parameters
+      const params = new URLSearchParams({
+        deleted: 'false',
+        archived: 'false',
+        limit: '50',
+        parent_id: folderId
+      });
+      
+      const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs?${params}`, {
         method: 'GET'
       }, true);
       
@@ -247,21 +254,17 @@ export class ClickUpClient {
       
       const docs: ClickUpDoc[] = [];
       
-      // Filter docs by parent folder if folderId is provided
-      const filteredDocs = folderId ? 
-        (response.docs || []).filter((doc: any) => {
-          // Check multiple possible parent ID fields
-          const parentMatches = doc.parent?.id === folderId || 
-                               doc.parent_id === folderId || 
-                               doc.parent_page_id === folderId ||
-                               doc.folder?.id === folderId;
-          console.error(`[DEBUG] Doc ${doc.id} (${doc.name}) parent:`, doc.parent, `parent_page_id:`, doc.parent_page_id, `matches ${folderId}:`, parentMatches);
-          return parentMatches;
-        }) :
-        (response.docs || []);
+      // The API already filtered by parent_id, so use all returned docs
+      const filteredDocs = response.docs || [];
       
-      console.error(`[DEBUG] Filtered docs count: ${filteredDocs.length}`);
-      console.error(`[DEBUG] Target folder ID: ${folderId}`);
+      console.error(`[DEBUG] API returned ${filteredDocs.length} docs for parent_id ${folderId}`);
+      if (filteredDocs.length > 0) {
+        console.error(`[DEBUG] Sample docs:`, filteredDocs.slice(0, 3).map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          parent: doc.parent
+        })));
+      }
       
       for (const doc of filteredDocs) {
         try {
