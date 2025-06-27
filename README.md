@@ -1,10 +1,10 @@
 # ClickUp Playbooks MCP Server
 
-A Model Context Protocol (MCP) server that provides access to ClickUp documents specifically from the RPNet->Playbooks folder. This server enables AI assistants to retrieve, analyze, and answer questions about playbook documents including estimations, descriptions, and requirements.
+A Model Context Protocol (MCP) server that provides access to ClickUp documents specifically from the RPNet->Playbooks->Playbook Instructions folder. This server enables AI assistants to retrieve, analyze, and answer questions about playbook documents including estimations, descriptions, and requirements.
 
 ## Features
 
-- **Folder-Specific Access**: Only retrieves documents from the RPNet->Playbooks folder in ClickUp
+- **Folder-Specific Access**: Only retrieves documents from the RPNet->Playbooks->Playbook Instructions folder in ClickUp
 - **Document Analysis**: Automatically extracts estimations, requirements, descriptions, and complexity levels from playbook content
 - **Question Answering**: Provides intelligent responses about playbook estimations, requirements, and descriptions
 - **Search Functionality**: Search through playbooks using natural language queries
@@ -12,15 +12,6 @@ A Model Context Protocol (MCP) server that provides access to ClickUp documents 
 
 ## Quick Start
 
-### Install via npm (Recommended)
-
-```bash
-# Install globally
-npm install -g @rptechs/clickup-playbooks-mcp
-
-# Or use with npx (no installation required)
-npx @rptechs/clickup-playbooks-mcp
-```
 
 ### Claude Desktop Configuration
 
@@ -34,7 +25,8 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
       "args": ["-y", "github:RPTechs/clickup-playbooks-mcp"],
       "env": {
         "CLICKUP_API_TOKEN": "pk_your_token_here",
-        "CLICKUP_PLAYBOOKS_FOLDER_ID": "20382935"
+        "CLICKUP_WORKSPACE_ID": "2285500",
+        "CLICKUP_PLAYBOOKS_FOLDER_ID": "98107928"
       }
     }
   }
@@ -46,15 +38,27 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `CLICKUP_API_TOKEN` | ✅ | - | Your ClickUp API token |
-| `CLICKUP_PLAYBOOKS_FOLDER_ID` | ❌ | `20382935` | RPNet Playbooks folder ID |
-| `CLICKUP_WORKSPACE_ID` | ❌ | - | ClickUp workspace/team ID |
-| `CLICKUP_SPACE_ID` | ❌ | - | ClickUp space ID |
+| `CLICKUP_WORKSPACE_ID` | ❌ | `2285500` | Your ClickUp workspace ID |
+| `CLICKUP_PLAYBOOKS_FOLDER_ID` | ❌ | `98107928` | RPNet->Playbooks->Playbook Instructions folder ID |
+
 
 ### Getting Your ClickUp API Token
 
 1. Go to ClickUp Settings → Apps
 2. Click "Generate" under API Token
 3. Copy the token (starts with `pk_`)
+
+### Getting Your Workspace and Folder IDs
+
+#### Workspace ID
+1. In ClickUp, look at your URL when viewing your workspace
+2. The workspace ID is in the URL: `https://app.clickup.com/{workspace_id}/...`
+3. Or use the browser console: `window.location.pathname.split('/')[1]`
+
+#### Folder ID  
+1. Navigate to your RPNet->Playbooks->Playbook Instructions folder
+2. Look at the URL or right-click and inspect element
+3. The folder ID will be visible in the URL or data attributes
 
 ## Development Installation
 
@@ -72,7 +76,7 @@ npm run build
 ### MCP Tools Available
 
 #### `search_playbooks`
-Search for playbooks in the RPNet->Playbooks folder.
+Search for playbooks in the RPNet->Playbooks->Playbook Instructions folder.
 
 #### `get_playbook_estimations`
 Get time estimations from all playbooks.
@@ -102,14 +106,37 @@ Each resource includes:
 
 ### Integration with Claude Desktop
 
-Add this server to your Claude Desktop MCP configuration:
+For production use, add this server to your Claude Desktop MCP configuration using the GitHub repository:
+
+```json
+{
+  "mcpServers": {
+    "clickup-playbooks": {
+      "command": "npx",
+      "args": ["-y", "github:RPTechs/clickup-playbooks-mcp"],
+      "env": {
+        "CLICKUP_API_TOKEN": "pk_your_token_here",
+        "CLICKUP_WORKSPACE_ID": "your_workspace_id",
+        "CLICKUP_PLAYBOOKS_FOLDER_ID": "your_folder_id"
+      }
+    }
+  }
+}
+```
+
+For local development:
 
 ```json
 {
   "mcpServers": {
     "clickup-playbooks": {
       "command": "node",
-      "args": ["/path/to/clickup-playbooks-mcp/build/index.js"]
+      "args": ["/path/to/clickup-playbooks-mcp/build/index.js"],
+      "env": {
+        "CLICKUP_API_TOKEN": "pk_your_token_here",
+        "CLICKUP_WORKSPACE_ID": "your_workspace_id",
+        "CLICKUP_PLAYBOOKS_FOLDER_ID": "your_folder_id"
+      }
     }
   }
 }
@@ -165,9 +192,10 @@ npm run inspector
 ## API Structure
 
 ### ClickUp Integration
-- Uses ClickUp API v2
-- Searches for RPNet folder and Playbooks subfolder
-- Retrieves documents from folder lists
+- Uses ClickUp API v3 for Docs endpoints
+- Uses ClickUp API v2 for other endpoints
+- Directly accesses workspace documents by ID
+- Filters documents by Playbook Instructions folder
 - Handles API rate limiting and error responses
 
 ### Document Processing
@@ -197,7 +225,7 @@ The server includes comprehensive error handling for:
 - Currently supports English language content analysis
 - Requires ClickUp API access and appropriate permissions
 - Document analysis is based on content patterns and may not catch all variations
-- Limited to documents within the RPNet->Playbooks folder structure
+- Limited to documents within the RPNet->Playbooks->Playbook Instructions folder structure
 
 ## Contributing
 
