@@ -48,14 +48,16 @@ export interface ClickUpSpace {
 
 export class ClickUpClient {
   private baseUrl = 'https://api.clickup.com/api/v2';
+  private baseUrlV3 = 'https://api.clickup.com/api/v3';
   private config: ClickUpConfig;
 
   constructor(config: ClickUpConfig) {
     this.config = config;
   }
 
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}, useV3: boolean = false): Promise<T> {
+    const baseUrl = useV3 ? this.baseUrlV3 : this.baseUrl;
+    const url = `${baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -130,50 +132,49 @@ export class ClickUpClient {
 
   async getDocs(folderId: string): Promise<ClickUpDoc[]> {
     try {
-      // Use ClickUp's Docs API to search for docs in the folder
-      const response = await this.makeRequest<{ docs: any[] }>(`/docs/search`, {
-        method: 'POST',
-        body: JSON.stringify({
-          folder_id: folderId,
-          include_closed: true
-        })
-      });
+      if (!this.config.workspaceId) {
+        throw new Error('Workspace ID is required for docs API');
+      }
+
+      // Use ClickUp's v3 Docs API to get docs from workspace
+      const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs`, {
+        method: 'GET'
+      }, true);
       
       const docs: ClickUpDoc[] = [];
       
-      for (const doc of response.docs || []) {
+      // Filter docs by folder if folderId is provided
+      const filteredDocs = folderId ? 
+        (response.docs || []).filter((doc: any) => doc.folder_id === folderId) :
+        (response.docs || []);
+      
+      for (const doc of filteredDocs) {
         try {
-          // Get the doc pages content
-          const docPages = await this.getDocPages(doc.id);
-          let content = '';
-          
-          if (docPages.pages && docPages.pages.length > 0) {
-            // Combine all page content
-            content = docPages.pages.map((page: any) => page.content?.markdown || page.content?.text || '').join('\n\n');
-          }
+          // Get the doc content using v3 API
+          const docDetail = await this.getDoc(doc.id);
           
           docs.push({
             id: doc.id,
-            name: doc.name,
-            content: content,
+            name: doc.name || 'Untitled',
+            content: docDetail.content || '',
             date_created: doc.date_created,
             date_updated: doc.date_updated,
-            creator: doc.creator,
+            creator: doc.creator || { id: '', username: '', email: '' },
             folder: {
               id: folderId,
               name: doc.folder?.name || 'Unknown'
             }
           });
-        } catch (pageError) {
-          console.error(`Error getting pages for doc ${doc.id}:`, pageError);
+        } catch (docError) {
+          console.error(`Error getting doc ${doc.id}:`, docError);
           // Still include the doc even if we can't get its content
           docs.push({
             id: doc.id,
-            name: doc.name,
+            name: doc.name || 'Untitled',
             content: '',
             date_created: doc.date_created,
             date_updated: doc.date_updated,
-            creator: doc.creator,
+            creator: doc.creator || { id: '', username: '', email: '' },
             folder: {
               id: folderId,
               name: doc.folder?.name || 'Unknown'
@@ -189,8 +190,11 @@ export class ClickUpClient {
     }
   }
 
-  async getDocPages(docId: string): Promise<{ pages: any[] }> {
-    return this.makeRequest(`/docs/${docId}/pages`);
+  async getDoc(docId: string): Promise<{ content: string }> {
+    if (!this.config.workspaceId) {
+      throw new Error('Workspace ID is required for docs API');
+    }
+    return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}`, {}, true);
   }
 
   private async getTasksInList(listId: string): Promise<any[]> {

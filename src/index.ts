@@ -21,7 +21,7 @@ class ClickUpPlaybooksMCP {
   constructor() {
     // Initialize from environment variables
     const apiToken = process.env.CLICKUP_API_TOKEN;
-    const folderId = process.env.CLICKUP_PLAYBOOKS_FOLDER_ID || '20382935';
+    const folderId = process.env.CLICKUP_PLAYBOOKS_FOLDER_ID || '98107928';
     
     if (!apiToken) {
       throw new Error('CLICKUP_API_TOKEN environment variable is required');
@@ -30,9 +30,10 @@ class ClickUpPlaybooksMCP {
     this.playbooksFolderId = folderId;
 
     // Initialize ClickUp client immediately if we have the token
+    const workspaceId = process.env.CLICKUP_WORKSPACE_ID || '2285500';
     const config: ClickUpConfig = {
       apiToken,
-      workspaceId: process.env.CLICKUP_WORKSPACE_ID,
+      workspaceId,
       spaceId: process.env.CLICKUP_SPACE_ID,
     };
     this.clickUpClient = new ClickUpClient(config);
