@@ -178,9 +178,14 @@ export class ClickUpClient {
           
           // Extract content from pages
           if (docPages.pages && docPages.pages.length > 0) {
-            content = docPages.pages.map((page: any) => 
-              page.content?.markdown || page.content?.text || page.content || ''
-            ).join('\n\n');
+            content = docPages.pages.map((page: any) => {
+              // Handle the actual content structure from your example
+              if (page.content) {
+                return page.content;
+              }
+              // Fallback to other possible content fields
+              return page.content?.markdown || page.content?.text || '';
+            }).filter(pageContent => pageContent.trim().length > 0).join('\n\n');
           }
           
           docs.push({
@@ -227,7 +232,12 @@ export class ClickUpClient {
     if (!this.config.workspaceId) {
       throw new Error('Workspace ID is required for docs API');
     }
-    return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}/pages`, {}, true);
+    // Add required parameters for full content retrieval
+    const params = new URLSearchParams({
+      max_page_depth: '-1',
+      content_format: 'text/md'
+    });
+    return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}/pages?${params}`, {}, true);
   }
 
   private formatCreator(creator: any): { id: string; username: string; email: string } {
