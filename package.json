@@ -1,18 +1,18 @@
 {
-  "name": "@your-username/clickup-playbooks-mcp",
+  "name": "@rptechs/clickup-playbooks-mcp",
   "version": "1.0.0",
   "description": "MCP server for ClickUp RPNet Playbooks folder access and analysis",
   "keywords": ["mcp", "clickup", "playbooks", "model-context-protocol", "claude"],
-  "author": "Your Name <your.email@example.com>",
+  "author": "RPTechs",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/clickup-playbooks-mcp.git"
+    "url": "https://github.com/RPTechs/clickup-playbooks-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/clickup-playbooks-mcp/issues"
+    "url": "https://github.com/RPTechs/clickup-playbooks-mcp/issues"
   },
-  "homepage": "https://github.com/your-username/clickup-playbooks-mcp#readme",
+  "homepage": "https://github.com/RPTechs/clickup-playbooks-mcp#readme",
   "type": "module",
   "bin": {
     "clickup-playbooks-mcp": "./build/index.js"
