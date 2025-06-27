@@ -197,6 +197,14 @@ class ClickUpPlaybooksMCP {
               required: ['playbookId'],
             },
           },
+          {
+            name: 'test_api_connection',
+            description: 'Test ClickUp API connection and debug data retrieval',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
         ],
       };
     });
@@ -220,6 +228,9 @@ class ClickUpPlaybooksMCP {
           
           case 'analyze_playbook':
             return await this.analyzePlaybook(args?.playbookId as string);
+          
+          case 'test_api_connection':
+            return await this.testApiConnection();
           
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -373,6 +384,54 @@ class ClickUpPlaybooksMCP {
     
     if (analysis.tags.length > 0) {
       response += `**Tags:** ${analysis.tags.join(', ')}\n\n`;
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: response,
+        },
+      ],
+    };
+  }
+
+  private async testApiConnection() {
+    if (!this.clickUpClient) {
+      throw new Error('ClickUp client not configured');
+    }
+
+    let response = `# API Connection Test\n\n`;
+    
+    try {
+      // Test basic API connectivity
+      response += `**Configuration:**\n`;
+      response += `- Workspace ID: ${this.clickUpClient['config'].workspaceId}\n`;
+      response += `- Folder ID: ${this.playbooksFolderId}\n`;
+      response += `- API Token: ${this.clickUpClient['config'].apiToken ? 'Present' : 'Missing'}\n\n`;
+
+      // Test workspace docs endpoint
+      response += `**Testing workspace docs endpoint...**\n`;
+      const docs = await this.clickUpClient.getDocs(this.playbooksFolderId);
+      response += `✅ Retrieved ${docs.length} documents\n\n`;
+
+      if (docs.length > 0) {
+        response += `**First 3 documents:**\n`;
+        docs.slice(0, 3).forEach((doc, index) => {
+          response += `${index + 1}. **${doc.name}** (ID: ${doc.id})\n`;
+          response += `   - Content length: ${doc.content.length} characters\n`;
+          response += `   - Created: ${new Date(parseInt(doc.date_created)).toLocaleDateString()}\n`;
+        });
+      } else {
+        response += `⚠️ No documents found in folder ${this.playbooksFolderId}\n`;
+        response += `This could mean:\n`;
+        response += `- Wrong folder ID\n`;
+        response += `- No documents in the folder\n`;
+        response += `- API permissions issue\n`;
+      }
+
+    } catch (error) {
+      response += `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n`;
     }
 
     return {

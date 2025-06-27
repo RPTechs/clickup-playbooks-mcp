@@ -136,23 +136,45 @@ export class ClickUpClient {
         throw new Error('Workspace ID is required for docs API');
       }
 
+      console.error(`[DEBUG] Getting docs from workspace: ${this.config.workspaceId}, folder: ${folderId}`);
+
       // Use ClickUp's v3 Docs API to get docs from workspace
       const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs`, {
         method: 'GET'
       }, true);
       
+      console.error(`[DEBUG] API Response:`, {
+        totalDocs: response.docs?.length || 0,
+        firstDoc: response.docs?.[0] ? {
+          id: response.docs[0].id,
+          name: response.docs[0].name,
+          parent: response.docs[0].parent
+        } : null
+      });
+      
       const docs: ClickUpDoc[] = [];
       
       // Filter docs by parent folder if folderId is provided
       const filteredDocs = folderId ? 
-        (response.docs || []).filter((doc: any) => doc.parent?.id === folderId) :
+        (response.docs || []).filter((doc: any) => {
+          console.error(`[DEBUG] Doc ${doc.id} parent:`, doc.parent);
+          return doc.parent?.id === folderId;
+        }) :
         (response.docs || []);
+      
+      console.error(`[DEBUG] Filtered docs count: ${filteredDocs.length}`);
       
       for (const doc of filteredDocs) {
         try {
+          console.error(`[DEBUG] Getting pages for doc: ${doc.id}`);
           // Get the doc pages/content using v3 API
           const docPages = await this.getDocPages(doc.id);
           let content = '';
+          
+          console.error(`[DEBUG] Doc ${doc.id} pages:`, {
+            pagesCount: docPages.pages?.length || 0,
+            firstPage: docPages.pages?.[0] ? Object.keys(docPages.pages[0]) : null
+          });
           
           // Extract content from pages
           if (docPages.pages && docPages.pages.length > 0) {
@@ -173,8 +195,10 @@ export class ClickUpClient {
               name: 'Playbook Instructions'
             }
           });
+          
+          console.error(`[DEBUG] Added doc: ${doc.name}, content length: ${content.length}`);
         } catch (docError) {
-          console.error(`Error getting pages for doc ${doc.id}:`, docError);
+          console.error(`[DEBUG] Error getting pages for doc ${doc.id}:`, docError);
           // Still include the doc even if we can't get its content
           docs.push({
             id: doc.id,
@@ -191,9 +215,10 @@ export class ClickUpClient {
         }
       }
       
+      console.error(`[DEBUG] Final docs count: ${docs.length}`);
       return docs;
     } catch (error) {
-      console.error('Error getting docs:', error);
+      console.error('[DEBUG] Error getting docs:', error);
       return [];
     }
   }
