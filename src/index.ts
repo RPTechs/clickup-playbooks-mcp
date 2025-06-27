@@ -283,31 +283,46 @@ class ClickUpPlaybooksMCP {
       throw new Error('ClickUp client not configured');
     }
 
-    const docs = await this.clickUpClient.getDocs(this.playbooksFolderId);
+    // Try both the folder-based search and parent page ID search
+    let docs = await this.clickUpClient.getDocs(this.playbooksFolderId);
     console.error(`[DEBUG] Retrieved ${docs.length} docs from folder ${this.playbooksFolderId}`);
     
-    if (docs.length > 0) {
+    // Also try searching by the specific parent page ID from your example
+    const parentPageDocs = await this.clickUpClient.getDocsByParentPageId('98107928');
+    console.error(`[DEBUG] Retrieved ${parentPageDocs.length} docs from parent page ID 98107928`);
+    
+    // Combine results, removing duplicates
+    const allDocs = [...docs];
+    for (const doc of parentPageDocs) {
+      if (!allDocs.find(existing => existing.id === doc.id)) {
+        allDocs.push(doc);
+      }
+    }
+    
+    console.error(`[DEBUG] Total unique docs: ${allDocs.length}`);
+    
+    if (allDocs.length > 0) {
       console.error(`[DEBUG] First doc example:`, {
-        id: docs[0].id,
-        name: docs[0].name,
-        contentLength: docs[0].content.length,
-        contentPreview: docs[0].content.substring(0, 100)
+        id: allDocs[0].id,
+        name: allDocs[0].name,
+        contentLength: allDocs[0].content.length,
+        contentPreview: allDocs[0].content.substring(0, 100)
       });
     }
     
-    const results = this.documentAnalyzer.searchDocuments(docs, query);
+    const results = this.documentAnalyzer.searchDocuments(allDocs, query);
     console.error(`[DEBUG] Search for "${query}" returned ${results.length} results`);
 
     return {
       content: [
         {
           type: 'text',
-          text: docs.length === 0 
-            ? `No documents found in folder ${this.playbooksFolderId}. Check your folder ID and API permissions.`
+          text: allDocs.length === 0 
+            ? `No documents found in folder ${this.playbooksFolderId} or parent page 98107928. Check your folder ID and API permissions.`
             : results.length > 0 
             ? `Found ${results.length} playbook(s) matching "${query}":\n\n` +
               results.map(doc => `- **${doc.name}**\n  ${doc.content.substring(0, 150)}...`).join('\n\n')
-            : `Found ${docs.length} total playbooks, but none matched "${query}". Try a broader search term.`,
+            : `Found ${allDocs.length} total playbooks, but none matched "${query}". Try a broader search term.`,
         },
       ],
     };

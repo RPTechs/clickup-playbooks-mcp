@@ -250,8 +250,13 @@ export class ClickUpClient {
       // Filter docs by parent folder if folderId is provided
       const filteredDocs = folderId ? 
         (response.docs || []).filter((doc: any) => {
-          console.error(`[DEBUG] Doc ${doc.id} (${doc.name}) parent:`, doc.parent, `matches ${folderId}:`, doc.parent?.id === folderId);
-          return doc.parent?.id === folderId;
+          // Check multiple possible parent ID fields
+          const parentMatches = doc.parent?.id === folderId || 
+                               doc.parent_id === folderId || 
+                               doc.parent_page_id === folderId ||
+                               doc.folder?.id === folderId;
+          console.error(`[DEBUG] Doc ${doc.id} (${doc.name}) parent:`, doc.parent, `parent_page_id:`, doc.parent_page_id, `matches ${folderId}:`, parentMatches);
+          return parentMatches;
         }) :
         (response.docs || []);
       
@@ -260,26 +265,35 @@ export class ClickUpClient {
       
       for (const doc of filteredDocs) {
         try {
-          console.error(`[DEBUG] Getting pages for doc: ${doc.id}`);
-          // Get the doc pages/content using v3 API
-          const docPages = await this.getDocPages(doc.id);
+          // Use doc_id if available, otherwise fall back to id
+          const docIdToUse = doc.doc_id || doc.id;
+          console.error(`[DEBUG] Getting pages for doc: ${doc.id}, using doc_id: ${docIdToUse}`);
+          
+          // Check if content is already available in the document response
           let content = '';
-          
-          console.error(`[DEBUG] Doc ${doc.id} pages:`, {
-            pagesCount: docPages.pages?.length || 0,
-            firstPage: docPages.pages?.[0] ? Object.keys(docPages.pages[0]) : null
-          });
-          
-          // Extract content from pages
-          if (docPages.pages && docPages.pages.length > 0) {
-            content = docPages.pages.map((page: any) => {
-              // Handle the actual content structure from your example
-              if (page.content) {
-                return page.content;
-              }
-              // Fallback to other possible content fields
-              return page.content?.markdown || page.content?.text || '';
-            }).filter(pageContent => pageContent.trim().length > 0).join('\n\n');
+          if (doc.content && typeof doc.content === 'string') {
+            content = doc.content;
+            console.error(`[DEBUG] Using direct content from doc response, length: ${content.length}`);
+          } else {
+            // Get the doc pages/content using v3 API
+            const docPages = await this.getDocPages(docIdToUse);
+            
+            console.error(`[DEBUG] Doc ${docIdToUse} pages:`, {
+              pagesCount: docPages.pages?.length || 0,
+              firstPage: docPages.pages?.[0] ? Object.keys(docPages.pages[0]) : null
+            });
+            
+            // Extract content from pages
+            if (docPages.pages && docPages.pages.length > 0) {
+              content = docPages.pages.map((page: any) => {
+                // Handle the actual content structure from your example
+                if (page.content) {
+                  return page.content;
+                }
+                // Fallback to other possible content fields
+                return page.content?.markdown || page.content?.text || '';
+              }).filter(pageContent => pageContent.trim().length > 0).join('\n\n');
+            }
           }
           
           docs.push({
@@ -332,6 +346,71 @@ export class ClickUpClient {
       content_format: 'text/md'
     });
     return this.makeRequest(`/workspaces/${this.config.workspaceId}/docs/${docId}/pages?${params}`, {}, true);
+  }
+
+  // New method to search specifically for documents by parent page ID
+  async getDocsByParentPageId(parentPageId: string): Promise<ClickUpDoc[]> {
+    try {
+      if (!this.config.workspaceId) {
+        throw new Error('Workspace ID is required for docs API');
+      }
+
+      console.error(`[DEBUG] Searching for docs with parent_page_id: ${parentPageId}`);
+
+      // Get all docs from workspace
+      const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs`, {
+        method: 'GET'
+      }, true);
+      
+      // Filter specifically by parent_page_id
+      const filteredDocs = (response.docs || []).filter((doc: any) => {
+        return doc.parent_page_id === parentPageId;
+      });
+
+      console.error(`[DEBUG] Found ${filteredDocs.length} docs with parent_page_id ${parentPageId}`);
+
+      const docs: ClickUpDoc[] = [];
+      
+      for (const doc of filteredDocs) {
+        try {
+          let content = doc.content || '';
+          
+          // If no direct content, try to get it from pages API
+          if (!content) {
+            const docIdToUse = doc.doc_id || doc.id;
+            const docPages = await this.getDocPages(docIdToUse);
+            
+            if (docPages.pages && docPages.pages.length > 0) {
+              content = docPages.pages.map((page: any) => {
+                return page.content || page.content?.markdown || page.content?.text || '';
+              }).filter(pageContent => pageContent.trim().length > 0).join('\n\n');
+            }
+          }
+          
+          docs.push({
+            id: doc.id,
+            name: doc.name || 'Untitled',
+            content: content,
+            date_created: doc.date_created,
+            date_updated: doc.date_updated,
+            creator: this.formatCreator(doc.creator),
+            folder: {
+              id: parentPageId,
+              name: 'Playbooks'
+            }
+          });
+          
+          console.error(`[DEBUG] Added doc: ${doc.name}, content length: ${content.length}`);
+        } catch (docError) {
+          console.error(`[DEBUG] Error processing doc ${doc.id}:`, docError);
+        }
+      }
+      
+      return docs;
+    } catch (error) {
+      console.error('[DEBUG] Error getting docs by parent page ID:', error);
+      return [];
+    }
   }
 
   private formatCreator(creator: any): { id: string; username: string; email: string } {
