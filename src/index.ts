@@ -293,6 +293,21 @@ class ClickUpPlaybooksMCP {
         contentLength: doc.content.length
       })));
     }
+
+    // If query is empty, "*", or "all", show all playbooks
+    if (!query || query.trim() === '' || query === '*' || query.toLowerCase().includes('all')) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: docs.length === 0 
+              ? `No playbooks found in folder ${this.playbooksFolderId}. Check your folder ID and API permissions.`
+              : `Found ${docs.length} total playbooks:\n\n` +
+                docs.map((doc, index) => `${index + 1}. **${doc.name}**\n   - ID: ${doc.id}\n   - Content: ${doc.content.length} characters`).join('\n\n'),
+          },
+        ],
+      };
+    }
     
     const results = this.documentAnalyzer.searchDocuments(docs, query);
     console.error(`[DEBUG] Search for "${query}" returned ${results.length} results`);
@@ -481,26 +496,31 @@ class ClickUpPlaybooksMCP {
     let response = `# Complete Playbook Scan\n\n`;
     
     try {
-      // Get ALL documents from the workspace
+      // Get documents from the specific playbooks folder
+      const playbookFolderDocs = await this.clickUpClient.getDocs(this.playbooksFolderId);
+      
+      // Also get ALL documents from workspace for comparison
       const allDocs = await this.clickUpClient.getAllDocs();
-      response += `📊 **Scan Results:** Found ${allDocs.length} documents in workspace\n\n`;
+      response += `📊 **Scan Results:** Found ${allDocs.length} documents in workspace, ${playbookFolderDocs.length} in playbooks folder\n\n`;
 
-      // Filter for playbooks (documents that look like playbooks)
-      const playbooks = allDocs.filter(doc => {
-        const name = doc.name.toLowerCase();
-        const content = doc.content.toLowerCase();
-        
-        // Look for playbook indicators
-        return name.includes('playbook') || 
-               name.includes('guide') || 
-               name.includes('process') ||
-               name.includes('audit') ||
-               name.includes('implementation') ||
-               content.includes('playbook') ||
-               content.includes('process') ||
-               content.includes('steps') ||
-               content.includes('checklist');
-      });
+      // Use the documents from the playbooks folder as the primary source
+      const playbooks = playbookFolderDocs.length > 0 ? playbookFolderDocs : 
+        // Fallback: filter all docs for playbook-like content
+        allDocs.filter(doc => {
+          const name = doc.name.toLowerCase();
+          const content = doc.content.toLowerCase();
+          
+          // Look for playbook indicators
+          return name.includes('playbook') || 
+                 name.includes('guide') || 
+                 name.includes('process') ||
+                 name.includes('audit') ||
+                 name.includes('implementation') ||
+                 content.includes('playbook') ||
+                 content.includes('process') ||
+                 content.includes('steps') ||
+                 content.includes('checklist');
+        });
 
       response += `🎯 **Playbooks Found:** ${playbooks.length} relevant playbooks\n\n`;
 
