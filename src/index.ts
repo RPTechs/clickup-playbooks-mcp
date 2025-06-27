@@ -622,56 +622,91 @@ class ClickUpPlaybooksMCP {
         analysis: this.documentAnalyzer.analyzeDocument(doc)
       }));
 
-      // Create the structured table
-      let response = `# Playbook Recommendations\n\n`;
+      // Create the structured response
+      let response = `# Recommended Playbooks\n\n`;
       response += `**Question:** ${question}\n\n`;
-      response += `**Found ${relevantPlaybooks.length} relevant playbook(s):**\n\n`;
 
-      // Create table header
-      response += `| Name | Description | Hours | Timing | Prerequisites | URL |\n`;
-      response += `|------|-------------|-------|--------|---------------|-----|\n`;
-
-      // Add each playbook as a table row
-      analyses.forEach(({ doc, analysis }) => {
-        const name = doc.name || 'Untitled';
-        const description = analysis.description?.substring(0, 100).replace(/\|/g, '\\|') || 'No description available';
-        const hours = analysis.hours || analysis.estimation || 'Not specified';
-        const timing = analysis.timing || 'Not specified';
-        const prerequisites = analysis.prerequisites.length > 0 
-          ? analysis.prerequisites.slice(0, 2).join(', ').replace(/\|/g, '\\|')
-          : 'None specified';
-        const url = `https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`;
-
-        response += `| ${name} | ${description}... | ${hours} | ${timing} | ${prerequisites} | [View Playbook](${url}) |\n`;
-      });
-
-      response += `\n## Detailed Analysis\n\n`;
-
-      // Add detailed breakdown for each playbook
+      // Add each playbook with the exact format requested
       analyses.forEach(({ doc, analysis }, index) => {
-        response += `### ${index + 1}. ${doc.name}\n\n`;
-        response += `**Timing Question:** How long does the playbook implementation take?\n`;
+        const url = `https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`;
+        
+        response += `## ${index + 1}. ${doc.name}\n\n`;
+        
+        response += `**Timing Question:** "How long does the playbook implementation take?"\n`;
         response += `- **Answer:** ${analysis.timing || analysis.estimation || 'Timeline not specified in the playbook'}\n\n`;
         
-        response += `**Prerequisites:** What playbooks are prerequisites to complete the entire process?\n`;
+        response += `**Prerequisites:** "What playbooks are prerequisites to complete the entire process?"\n`;
         response += `- **Answer:** ${analysis.prerequisites.length > 0 ? analysis.prerequisites.join(', ') : 'No specific prerequisites mentioned'}\n\n`;
         
-        response += `**Hours:** How many hours will the implementation take?\n`;
-        response += `- **Answer:** ${analysis.hours || 'Hours not specified'}\n\n`;
+        response += `**Hours:** "How many hours will the implementation take?"\n`;
+        response += `- **Answer:** ${analysis.hours || analysis.estimation || 'Hours not specified'}\n\n`;
         
-        response += `**Description:** What is the playbook about?\n`;
+        response += `**Description:** "What is the playbook about?"\n`;
         response += `- **Answer:** ${analysis.description || 'Description not available'}\n\n`;
         
-        response += `**URL:** ${`https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`}\n\n`;
+        response += `**Name:** "What is the name of the playbook?"\n`;
+        response += `- **Answer:** ${doc.name}\n\n`;
         
-        if (analysis.requirements.length > 0) {
-          response += `**Additional Requirements:**\n`;
-          analysis.requirements.forEach(req => response += `- ${req}\n`);
-          response += '\n';
-        }
+        response += `**URL:** "What is the link to find the playbook?"\n`;
+        response += `- **Answer:** ${url}\n\n`;
         
         response += '---\n\n';
       });
+
+      // Add Playbooks Prerequisites section
+      response += `# Playbooks Prerequisites\n\n`;
+      
+      // Find any playbooks that are mentioned as prerequisites
+      const allPrerequisites = analyses.reduce((acc, { analysis }) => {
+        return acc.concat(analysis.prerequisites);
+      }, [] as string[]);
+      
+      if (allPrerequisites.length > 0) {
+        // Look for any playbooks in our docs that match the prerequisites
+        const prerequisitePlaybooks = docs.filter(doc => 
+          allPrerequisites.some(prereq => 
+            doc.name.toLowerCase().includes(prereq.toLowerCase()) ||
+            prereq.toLowerCase().includes(doc.name.toLowerCase())
+          )
+        );
+        
+        if (prerequisitePlaybooks.length > 0) {
+          prerequisitePlaybooks.forEach((doc, index) => {
+            const analysis = this.documentAnalyzer.analyzeDocument(doc);
+            const url = `https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`;
+            
+            response += `## ${index + 1}. ${doc.name} (Prerequisite)\n\n`;
+            
+            response += `**Timing Question:** "How long does the playbook implementation take?"\n`;
+            response += `- **Answer:** ${analysis.timing || analysis.estimation || 'Timeline not specified in the playbook'}\n\n`;
+            
+            response += `**Prerequisites:** "What playbooks are prerequisites to complete the entire process?"\n`;
+            response += `- **Answer:** ${analysis.prerequisites.length > 0 ? analysis.prerequisites.join(', ') : 'No specific prerequisites mentioned'}\n\n`;
+            
+            response += `**Hours:** "How many hours will the implementation take?"\n`;
+            response += `- **Answer:** ${analysis.hours || analysis.estimation || 'Hours not specified'}\n\n`;
+            
+            response += `**Description:** "What is the playbook about?"\n`;
+            response += `- **Answer:** ${analysis.description || 'Description not available'}\n\n`;
+            
+            response += `**Name:** "What is the name of the playbook?"\n`;
+            response += `- **Answer:** ${doc.name}\n\n`;
+            
+            response += `**URL:** "What is the link to find the playbook?"\n`;
+            response += `- **Answer:** ${url}\n\n`;
+            
+            response += '---\n\n';
+          });
+        } else {
+          response += `No specific prerequisite playbooks found in the current folder.\n\n`;
+          response += `**Mentioned Prerequisites:**\n`;
+          allPrerequisites.forEach(prereq => {
+            response += `- ${prereq}\n`;
+          });
+        }
+      } else {
+        response += `No prerequisites identified for the recommended playbooks.\n\n`;
+      }
 
       return {
         content: [

@@ -31,24 +31,51 @@ export class DocumentAnalyzer {
 
   private extractEstimation(content: string, name: string): string | null {
     const estimationPatterns = [
+      // Sprint points patterns (prioritize these)
+      /(?:story points?|sprint points?|sp|points?)[\s:]*(\d+(?:\.\d+)?)/gi,
+      /(\d+(?:\.\d+)?)\s*(?:story points?|sprint points?|sp|points?)\b/gi,
+      // Time-based patterns
       /(?:estimate|estimation|time|duration|effort)[\s:]*(\d+(?:\.\d+)?)\s*(hours?|days?|weeks?|minutes?|hrs?)/gi,
       /(\d+(?:\.\d+)?)\s*(hours?|days?|weeks?|minutes?|hrs?)\s*(?:estimate|estimation|time|duration|effort)/gi,
       /(?:takes?|require[ds]?|need[s]?)\s*(?:about|around|approximately)?\s*(\d+(?:\.\d+)?)\s*(hours?|days?|weeks?|minutes?|hrs?)/gi,
-      /(?:story points?|sp)[\s:]*(\d+)/gi
+      // Generic number + unit patterns
+      /(\d+(?:\.\d+)?)\s*(story points?|sprint points?|sp|points?|hours?|hrs?|days?|weeks?)\b/gi
     ];
 
     for (const pattern of estimationPatterns) {
       const matches = [...content.matchAll(pattern)];
       if (matches.length > 0) {
         const match = matches[0];
-        return `${match[1]} ${match[2] || 'points'}`;
+        const value = match[1];
+        const unit = match[2] || 'points';
+        
+        // Convert sprint points to hours if needed (assuming 8 hours per sprint point)
+        if (unit.toLowerCase().includes('point') || unit.toLowerCase() === 'sp') {
+          const points = parseFloat(value);
+          return `${value} sprint points (${points * 8} hours)`;
+        }
+        
+        return `${value} ${unit}`;
       }
     }
 
     // Check title for estimation clues
-    const titlePattern = /\[(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|d|days?|w|weeks?)\]/gi;
+    const titlePattern = /\[(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|d|days?|w|weeks?|sp|points?)\]/gi;
     const titleMatch = name.match(titlePattern);
     if (titleMatch) {
+      const valueMatch = titleMatch[0].match(/(\d+(?:\.\d+)?)/);
+      const unitMatch = titleMatch[0].match(/(h|hr|hrs|hours?|d|days?|w|weeks?|sp|points?)/i);
+      
+      if (valueMatch && unitMatch) {
+        const value = valueMatch[1];
+        const unit = unitMatch[1];
+        
+        if (unit.toLowerCase() === 'sp' || unit.toLowerCase().includes('point')) {
+          const points = parseFloat(value);
+          return `${value} sprint points (${points * 8} hours)`;
+        }
+      }
+      
       return titleMatch[0].replace(/[\[\]]/g, '');
     }
 
@@ -347,6 +374,22 @@ export class DocumentAnalyzer {
   }
 
   private extractHours(content: string, name: string): string | null {
+    // First check for sprint points patterns (prioritize these)
+    const sprintPatterns = [
+      /(?:story points?|sprint points?|sp|points?)[\s:]*(\d+(?:\.\d+)?)/gi,
+      /(\d+(?:\.\d+)?)\s*(?:story points?|sprint points?|sp|points?)\b/gi
+    ];
+
+    for (const pattern of sprintPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0) {
+        const match = matches[0];
+        const points = parseFloat(match[1]);
+        return `${points * 8} hours (${points} sprint points)`;
+      }
+    }
+
+    // Then check for direct hour patterns
     const hourPatterns = [
       /(\d+(?:\.\d+)?)\s*hours?/gi,
       /(\d+(?:\.\d+)?)\s*hrs?/gi,
@@ -361,14 +404,6 @@ export class DocumentAnalyzer {
         const match = matches[0];
         return `${match[1]} hours`;
       }
-    }
-
-    // Check for sprint points and convert to hours (assuming 8 hours per sprint point)
-    const sprintPattern = /(\d+(?:\.\d+)?)\s*sprint\s*points?/gi;
-    const sprintMatch = content.match(sprintPattern);
-    if (sprintMatch) {
-      const points = parseFloat(sprintMatch[1]);
-      return `${points * 8} hours (${points} sprint points)`;
     }
 
     return null;
@@ -402,17 +437,23 @@ export class DocumentAnalyzer {
 
   private extractTiming(content: string): string | null {
     const timingPatterns = [
-      /timeline[\s:]*([^\n]+)/gi,
-      /takes?\s*(?:about|around|approximately)?\s*([^\n]+)/gi,
+      /(?:timing|timeline|timeframe)[\s:]*([^\n]+)/gi,
+      /(?:takes?|requires?)\s*(?:about|around|approximately)?\s*([^\n]+?(?:hours?|days?|weeks?|months?))/gi,
       /completion\s*time[\s:]*([^\n]+)/gi,
       /duration[\s:]*([^\n]+)/gi,
-      /timeframe[\s:]*([^\n]+)/gi
+      /implementation\s*takes?[\s:]*([^\n]+)/gi,
+      /how\s*long[\s:]*(.*?)(?:\n|$)/gi
     ];
 
     for (const pattern of timingPatterns) {
       const matches = [...content.matchAll(pattern)];
       if (matches.length > 0 && matches[0][1]) {
-        return matches[0][1].trim();
+        let timing = matches[0][1].trim();
+        // Clean up common unwanted text
+        timing = timing.replace(/^does\s+the\s+playbook\s+implementation\s+take\??\s*/i, '');
+        if (timing.length > 0) {
+          return timing;
+        }
       }
     }
 
