@@ -145,11 +145,11 @@ export class ClickUpClient {
       
       console.error(`[DEBUG] API Response:`, {
         totalDocs: response.docs?.length || 0,
-        firstDoc: response.docs?.[0] ? {
-          id: response.docs[0].id,
-          name: response.docs[0].name,
-          parent: response.docs[0].parent
-        } : null
+        allDocs: response.docs?.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          parent: doc.parent
+        })) || []
       });
       
       const docs: ClickUpDoc[] = [];
@@ -157,12 +157,13 @@ export class ClickUpClient {
       // Filter docs by parent folder if folderId is provided
       const filteredDocs = folderId ? 
         (response.docs || []).filter((doc: any) => {
-          console.error(`[DEBUG] Doc ${doc.id} parent:`, doc.parent);
+          console.error(`[DEBUG] Doc ${doc.id} (${doc.name}) parent:`, doc.parent, `matches ${folderId}:`, doc.parent?.id === folderId);
           return doc.parent?.id === folderId;
         }) :
         (response.docs || []);
       
       console.error(`[DEBUG] Filtered docs count: ${filteredDocs.length}`);
+      console.error(`[DEBUG] Target folder ID: ${folderId}`);
       
       for (const doc of filteredDocs) {
         try {
