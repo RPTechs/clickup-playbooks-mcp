@@ -12,6 +12,15 @@ A Model Context Protocol (MCP) server that provides access to ClickUp documents 
 
 ## Quick Start
 
+### Install via npm (Recommended)
+
+```bash
+# Install globally
+npm install -g @rptechs/clickup-playbooks-mcp
+
+# Or use with npx (no installation required)
+npx @rptechs/clickup-playbooks-mcp
+```
 
 ### Claude Desktop Configuration
 
@@ -38,7 +47,8 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
 |----------|----------|---------|-------------|
 | `CLICKUP_API_TOKEN` | ✅ | - | Your ClickUp API token |
 | `CLICKUP_PLAYBOOKS_FOLDER_ID` | ❌ | `20382935` | RPNet Playbooks folder ID |
-
+| `CLICKUP_WORKSPACE_ID` | ❌ | - | ClickUp workspace/team ID |
+| `CLICKUP_SPACE_ID` | ❌ | - | ClickUp space ID |
 
 ### Getting Your ClickUp API Token
 

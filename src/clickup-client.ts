@@ -130,36 +130,56 @@ export class ClickUpClient {
 
   async getDocs(folderId: string): Promise<ClickUpDoc[]> {
     try {
-      // Note: ClickUp API doesn't have a direct "get docs in folder" endpoint
-      // We'll use the tasks endpoint and filter for docs, or use lists if docs are in lists
-      const folder = await this.getFolder(folderId);
+      // Use ClickUp's Docs API to search for docs in the folder
+      const response = await this.makeRequest<{ docs: any[] }>(`/docs/search`, {
+        method: 'POST',
+        body: JSON.stringify({
+          folder_id: folderId,
+          include_closed: true
+        })
+      });
+      
       const docs: ClickUpDoc[] = [];
       
-      // Get lists in the folder and then get tasks/docs from those lists
-      for (const list of folder.lists) {
-        const tasks = await this.getTasksInList(list.id);
-        
-        // Filter for document-type tasks or tasks with document content
-        const docTasks = tasks.filter((task: any) => 
-          task.description || task.text_content || 
-          (task.custom_fields && task.custom_fields.some((field: any) => 
-            field.name?.toLowerCase().includes('doc') || 
-            field.name?.toLowerCase().includes('content')
-          ))
-        );
-        
-        docs.push(...docTasks.map((task: any) => ({
-          id: task.id,
-          name: task.name,
-          content: task.description || task.text_content || '',
-          date_created: task.date_created,
-          date_updated: task.date_updated,
-          creator: task.creator,
-          folder: {
-            id: folderId,
-            name: folder.name
+      for (const doc of response.docs || []) {
+        try {
+          // Get the doc pages content
+          const docPages = await this.getDocPages(doc.id);
+          let content = '';
+          
+          if (docPages.pages && docPages.pages.length > 0) {
+            // Combine all page content
+            content = docPages.pages.map((page: any) => page.content?.markdown || page.content?.text || '').join('\n\n');
           }
-        })));
+          
+          docs.push({
+            id: doc.id,
+            name: doc.name,
+            content: content,
+            date_created: doc.date_created,
+            date_updated: doc.date_updated,
+            creator: doc.creator,
+            folder: {
+              id: folderId,
+              name: doc.folder?.name || 'Unknown'
+            }
+          });
+        } catch (pageError) {
+          console.error(`Error getting pages for doc ${doc.id}:`, pageError);
+          // Still include the doc even if we can't get its content
+          docs.push({
+            id: doc.id,
+            name: doc.name,
+            content: '',
+            date_created: doc.date_created,
+            date_updated: doc.date_updated,
+            creator: doc.creator,
+            folder: {
+              id: folderId,
+              name: doc.folder?.name || 'Unknown'
+            }
+          });
+        }
       }
       
       return docs;
@@ -167,6 +187,10 @@ export class ClickUpClient {
       console.error('Error getting docs:', error);
       return [];
     }
+  }
+
+  async getDocPages(docId: string): Promise<{ pages: any[] }> {
+    return this.makeRequest(`/docs/${docId}/pages`);
   }
 
   private async getTasksInList(listId: string): Promise<any[]> {
