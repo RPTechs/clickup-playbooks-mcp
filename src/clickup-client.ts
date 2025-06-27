@@ -130,6 +130,99 @@ export class ClickUpClient {
     }
   }
 
+  async getAllDocs(): Promise<ClickUpDoc[]> {
+    try {
+      if (!this.config.workspaceId) {
+        throw new Error('Workspace ID is required for docs API');
+      }
+
+      console.error(`[DEBUG] Getting ALL docs from workspace: ${this.config.workspaceId}`);
+
+      // Use ClickUp's v3 Docs API to get ALL docs from workspace
+      const response = await this.makeRequest<{ docs: any[] }>(`/workspaces/${this.config.workspaceId}/docs`, {
+        method: 'GET'
+      }, true);
+      
+      console.error(`[DEBUG] API Response:`, {
+        totalDocs: response.docs?.length || 0,
+        allDocs: response.docs?.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          parent: doc.parent
+        })) || []
+      });
+      
+      const docs: ClickUpDoc[] = [];
+      
+      // Get ALL documents, no folder filtering
+      const allDocs = response.docs || [];
+      
+      console.error(`[DEBUG] Processing ${allDocs.length} documents`);
+      
+      for (const doc of allDocs) {
+        try {
+          console.error(`[DEBUG] Getting pages for doc: ${doc.id} (${doc.name})`);
+          // Get the doc pages/content using v3 API
+          const docPages = await this.getDocPages(doc.id);
+          let content = '';
+          
+          console.error(`[DEBUG] Doc ${doc.id} pages:`, {
+            pagesCount: docPages.pages?.length || 0,
+            firstPage: docPages.pages?.[0] ? Object.keys(docPages.pages[0]) : null
+          });
+          
+          // Extract content from pages
+          if (docPages.pages && docPages.pages.length > 0) {
+            content = docPages.pages.map((page: any) => {
+              // Handle the actual content structure from your example
+              if (page.content) {
+                return page.content;
+              }
+              // Fallback to other possible content fields
+              return page.content?.markdown || page.content?.text || '';
+            }).filter(pageContent => pageContent.trim().length > 0).join('\n\n');
+          }
+          
+          docs.push({
+            id: doc.id,
+            name: doc.name || 'Untitled',
+            content: content,
+            date_created: doc.date_created,
+            date_updated: doc.date_updated,
+            creator: this.formatCreator(doc.creator),
+            folder: {
+              id: doc.parent?.id || 'unknown',
+              name: doc.parent?.name || 'Unknown Folder'
+            }
+          });
+          
+          console.error(`[DEBUG] Added doc: ${doc.name}, content length: ${content.length}, folder: ${doc.parent?.id}`);
+        } catch (docError) {
+          console.error(`[DEBUG] Error getting pages for doc ${doc.id}:`, docError);
+          // Still include the doc even if we can't get its content
+          docs.push({
+            id: doc.id,
+            name: doc.name || 'Untitled',
+            content: '',
+            date_created: doc.date_created,
+            date_updated: doc.date_updated,
+            creator: this.formatCreator(doc.creator),
+            folder: {
+              id: doc.parent?.id || 'unknown',
+              name: doc.parent?.name || 'Unknown Folder'
+            }
+          });
+        }
+      }
+      
+      console.error(`[DEBUG] Final docs count: ${docs.length}`);
+      return docs;
+    } catch (error) {
+      console.error('[DEBUG] Error getting all docs:', error);
+      return [];
+    }
+  }
+
   async getDocs(folderId: string): Promise<ClickUpDoc[]> {
     try {
       if (!this.config.workspaceId) {

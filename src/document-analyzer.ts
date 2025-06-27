@@ -6,6 +6,9 @@ export interface PlaybookAnalysis {
   requirements: string[];
   tags: string[];
   complexity: 'low' | 'medium' | 'high' | 'unknown';
+  hours: string | null;
+  prerequisites: string[];
+  timing: string | null;
 }
 
 export class DocumentAnalyzer {
@@ -19,7 +22,10 @@ export class DocumentAnalyzer {
       description: this.extractDescription(doc),
       requirements: this.extractRequirements(content),
       tags: this.extractTags(content, name),
-      complexity: this.assessComplexity(content)
+      complexity: this.assessComplexity(content),
+      hours: this.extractHours(content, name),
+      prerequisites: this.extractPrerequisites(content),
+      timing: this.extractTiming(content)
     };
   }
 
@@ -338,5 +344,78 @@ export class DocumentAnalyzer {
     });
     
     return response;
+  }
+
+  private extractHours(content: string, name: string): string | null {
+    const hourPatterns = [
+      /(\d+(?:\.\d+)?)\s*hours?/gi,
+      /(\d+(?:\.\d+)?)\s*hrs?/gi,
+      /(\d+(?:\.\d+)?)\s*h\b/gi,
+      /hours?[\s:]*(\d+(?:\.\d+)?)/gi,
+      /duration[\s:]*(\d+(?:\.\d+)?)\s*hours?/gi
+    ];
+
+    for (const pattern of hourPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0) {
+        const match = matches[0];
+        return `${match[1]} hours`;
+      }
+    }
+
+    // Check for sprint points and convert to hours (assuming 8 hours per sprint point)
+    const sprintPattern = /(\d+(?:\.\d+)?)\s*sprint\s*points?/gi;
+    const sprintMatch = content.match(sprintPattern);
+    if (sprintMatch) {
+      const points = parseFloat(sprintMatch[1]);
+      return `${points * 8} hours (${points} sprint points)`;
+    }
+
+    return null;
+  }
+
+  private extractPrerequisites(content: string): string[] {
+    const prerequisites: string[] = [];
+    
+    const prerequisitePatterns = [
+      /prerequisite[s]?[\s\n]*[:]\s*([^\n]+(?:\n[-*]\s*[^\n]+)*)/gi,
+      /before\s+starting[\s\n]*[:]\s*([^\n]+(?:\n[-*]\s*[^\n]+)*)/gi,
+      /dependencies[\s\n]*[:]\s*([^\n]+(?:\n[-*]\s*[^\n]+)*)/gi,
+      /requires?[\s\n]*[:]\s*([^\n]+(?:\n[-*]\s*[^\n]+)*)/gi,
+      /must\s+have[\s\n]*[:]\s*([^\n]+(?:\n[-*]\s*[^\n]+)*)/gi
+    ];
+
+    for (const pattern of prerequisitePatterns) {
+      const matches = [...content.matchAll(pattern)];
+      matches.forEach(match => {
+        if (match[1]) {
+          const reqText = match[1].trim();
+          // Split by bullet points or new lines
+          const items = reqText.split(/\n[-*]\s*|\n\d+\.\s*/).filter(item => item.trim());
+          prerequisites.push(...items.map(item => item.trim()));
+        }
+      });
+    }
+
+    return [...new Set(prerequisites)]; // Remove duplicates
+  }
+
+  private extractTiming(content: string): string | null {
+    const timingPatterns = [
+      /timeline[\s:]*([^\n]+)/gi,
+      /takes?\s*(?:about|around|approximately)?\s*([^\n]+)/gi,
+      /completion\s*time[\s:]*([^\n]+)/gi,
+      /duration[\s:]*([^\n]+)/gi,
+      /timeframe[\s:]*([^\n]+)/gi
+    ];
+
+    for (const pattern of timingPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0 && matches[0][1]) {
+        return matches[0][1].trim();
+      }
+    }
+
+    return null;
   }
 }

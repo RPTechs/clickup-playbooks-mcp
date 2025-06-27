@@ -205,6 +205,28 @@ class ClickUpPlaybooksMCP {
               properties: {},
             },
           },
+          {
+            name: 'scan_all_playbooks',
+            description: 'Scan entire workspace for all playbooks and rank by relevance',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'recommend_playbooks',
+            description: 'Recommend playbooks based on client issue or question, returns structured table',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                question: {
+                  type: 'string',
+                  description: 'The client issue or question (e.g. "which playbooks do you suggest for a hubspot audit?")',
+                },
+              },
+              required: ['question'],
+            },
+          },
         ],
       };
     });
@@ -231,6 +253,12 @@ class ClickUpPlaybooksMCP {
           
           case 'test_api_connection':
             return await this.testApiConnection();
+          
+          case 'scan_all_playbooks':
+            return await this.scanAllPlaybooks();
+          
+          case 'recommend_playbooks':
+            return await this.recommendPlaybooks(args?.question as string);
           
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -442,6 +470,207 @@ class ClickUpPlaybooksMCP {
         },
       ],
     };
+  }
+
+  private async scanAllPlaybooks() {
+    if (!this.clickUpClient) {
+      throw new Error('ClickUp client not configured');
+    }
+
+    let response = `# Complete Playbook Scan\n\n`;
+    
+    try {
+      // Get ALL documents from the workspace
+      const allDocs = await this.clickUpClient.getAllDocs();
+      response += `📊 **Scan Results:** Found ${allDocs.length} documents in workspace\n\n`;
+
+      // Filter for playbooks (documents that look like playbooks)
+      const playbooks = allDocs.filter(doc => {
+        const name = doc.name.toLowerCase();
+        const content = doc.content.toLowerCase();
+        
+        // Look for playbook indicators
+        return name.includes('playbook') || 
+               name.includes('guide') || 
+               name.includes('process') ||
+               name.includes('audit') ||
+               name.includes('implementation') ||
+               content.includes('playbook') ||
+               content.includes('process') ||
+               content.includes('steps') ||
+               content.includes('checklist');
+      });
+
+      response += `🎯 **Playbooks Found:** ${playbooks.length} relevant playbooks\n\n`;
+
+      if (playbooks.length > 0) {
+        response += `## 📋 Available Playbooks\n\n`;
+        
+        playbooks.forEach((doc, index) => {
+          const analysis = this.documentAnalyzer.analyzeDocument(doc);
+          
+          response += `### ${index + 1}. **${doc.name}**\n`;
+          response += `- **ID:** ${doc.id}\n`;
+          response += `- **Folder:** ${doc.folder.name} (${doc.folder.id})\n`;
+          response += `- **Content Length:** ${doc.content.length} characters\n`;
+          response += `- **Complexity:** ${analysis.complexity}\n`;
+          
+          if (analysis.estimation) {
+            response += `- **Estimation:** ${analysis.estimation}\n`;
+          }
+          
+          if (analysis.description) {
+            response += `- **Description:** ${analysis.description.substring(0, 150)}...\n`;
+          }
+          
+          if (analysis.tags.length > 0) {
+            response += `- **Tags:** ${analysis.tags.join(', ')}\n`;
+          }
+          
+          response += `- **Last Updated:** ${new Date(parseInt(doc.date_updated)).toLocaleDateString()}\n\n`;
+        });
+
+        // Add summary by category
+        response += `## 📊 Summary by Category\n\n`;
+        const categories = {
+          'HubSpot/CRM': playbooks.filter(p => p.name.toLowerCase().includes('hubspot') || p.content.toLowerCase().includes('hubspot')),
+          'Custom Objects': playbooks.filter(p => p.name.toLowerCase().includes('custom') || p.name.toLowerCase().includes('object')),
+          'Audits': playbooks.filter(p => p.name.toLowerCase().includes('audit') || p.content.toLowerCase().includes('audit')),
+          'Implementation': playbooks.filter(p => p.name.toLowerCase().includes('implementation') || p.content.toLowerCase().includes('implementation'))
+        };
+
+        Object.entries(categories).forEach(([category, docs]) => {
+          if (docs.length > 0) {
+            response += `**${category}:** ${docs.length} playbook(s)\n`;
+            docs.forEach(doc => response += `  - ${doc.name}\n`);
+            response += '\n';
+          }
+        });
+
+      } else {
+        response += `⚠️ No playbooks found. Documents scanned:\n\n`;
+        allDocs.slice(0, 10).forEach((doc, index) => {
+          response += `${index + 1}. **${doc.name}** (${doc.folder.name})\n`;
+        });
+        if (allDocs.length > 10) {
+          response += `... and ${allDocs.length - 10} more documents\n`;
+        }
+      }
+
+    } catch (error) {
+      response += `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n`;
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: response,
+        },
+      ],
+    };
+  }
+
+  private async recommendPlaybooks(question: string) {
+    if (!this.clickUpClient) {
+      throw new Error('ClickUp client not configured');
+    }
+
+    try {
+      // Get docs specifically from Playbooks Instructions folder
+      const docs = await this.clickUpClient.getDocs(this.playbooksFolderId);
+      console.error(`[DEBUG] Found ${docs.length} docs in Playbooks Instructions folder`);
+
+      // Search for relevant playbooks based on the question
+      const relevantPlaybooks = this.documentAnalyzer.searchDocuments(docs, question);
+      
+      if (relevantPlaybooks.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No relevant playbooks found for: "${question}"\n\nAvailable playbooks in folder:\n${docs.map(doc => `- ${doc.name}`).join('\n')}`
+            }
+          ]
+        };
+      }
+
+      // Analyze each relevant playbook
+      const analyses = relevantPlaybooks.map(doc => ({
+        doc,
+        analysis: this.documentAnalyzer.analyzeDocument(doc)
+      }));
+
+      // Create the structured table
+      let response = `# Playbook Recommendations\n\n`;
+      response += `**Question:** ${question}\n\n`;
+      response += `**Found ${relevantPlaybooks.length} relevant playbook(s):**\n\n`;
+
+      // Create table header
+      response += `| Name | Description | Hours | Timing | Prerequisites | URL |\n`;
+      response += `|------|-------------|-------|--------|---------------|-----|\n`;
+
+      // Add each playbook as a table row
+      analyses.forEach(({ doc, analysis }) => {
+        const name = doc.name || 'Untitled';
+        const description = analysis.description?.substring(0, 100).replace(/\|/g, '\\|') || 'No description available';
+        const hours = analysis.hours || analysis.estimation || 'Not specified';
+        const timing = analysis.timing || 'Not specified';
+        const prerequisites = analysis.prerequisites.length > 0 
+          ? analysis.prerequisites.slice(0, 2).join(', ').replace(/\|/g, '\\|')
+          : 'None specified';
+        const url = `https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`;
+
+        response += `| ${name} | ${description}... | ${hours} | ${timing} | ${prerequisites} | [View Playbook](${url}) |\n`;
+      });
+
+      response += `\n## Detailed Analysis\n\n`;
+
+      // Add detailed breakdown for each playbook
+      analyses.forEach(({ doc, analysis }, index) => {
+        response += `### ${index + 1}. ${doc.name}\n\n`;
+        response += `**Timing Question:** How long does the playbook implementation take?\n`;
+        response += `- **Answer:** ${analysis.timing || analysis.estimation || 'Timeline not specified in the playbook'}\n\n`;
+        
+        response += `**Prerequisites:** What playbooks are prerequisites to complete the entire process?\n`;
+        response += `- **Answer:** ${analysis.prerequisites.length > 0 ? analysis.prerequisites.join(', ') : 'No specific prerequisites mentioned'}\n\n`;
+        
+        response += `**Hours:** How many hours will the implementation take?\n`;
+        response += `- **Answer:** ${analysis.hours || 'Hours not specified'}\n\n`;
+        
+        response += `**Description:** What is the playbook about?\n`;
+        response += `- **Answer:** ${analysis.description || 'Description not available'}\n\n`;
+        
+        response += `**URL:** ${`https://app.clickup.com/${this.clickUpClient!['config'].workspaceId}/docs/${doc.id}`}\n\n`;
+        
+        if (analysis.requirements.length > 0) {
+          response += `**Additional Requirements:**\n`;
+          analysis.requirements.forEach(req => response += `- ${req}\n`);
+          response += '\n';
+        }
+        
+        response += '---\n\n';
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: response,
+          },
+        ],
+      };
+
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error finding playbooks: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+      };
+    }
   }
 
   async run() {
